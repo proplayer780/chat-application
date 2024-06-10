@@ -1,66 +1,41 @@
 import socket
 import threading
 
+SERVER_ADDRESS = "127.0.0.1"
 SERVER_PORT = 8000
 BUFFER_SIZE = 1024
-MAX_NAME_LENGTH = 32
-MAX_CLIENTS = 10
-SHIFT = 3  # Shift value for Caesar cipher
 
-clients = []
-clients_lock = threading.Lock()
-
-def caesar_cipher(text, shift):
-    result = ""
-    for char in text:
-        if char.isalpha():
-            shifted = ord(char) - shift
-            if char.islower():
-                result += chr((shifted - ord('a')) % 26 + ord('a'))
-            else:
-                result += chr((shifted - ord('A')) % 26 + ord('A'))
-        else:
-            result += char
-    return result
-
-def handle_client(client_socket, client_address):
-    name = client_socket.recv(MAX_NAME_LENGTH).decode().strip()
-    print(f"Welcome {name} to our awesome server.")
-
-    with clients_lock:
-        clients.append((client_socket, name))
-
+def receive_messages(client_socket):
     while True:
         try:
             message = client_socket.recv(BUFFER_SIZE).decode()
             if not message:
                 break
-            decrypted_message = caesar_cipher(message, SHIFT)
-            print(f"{name}: {decrypted_message}")
-
-            with clients_lock:
-                for c in clients:
-                    if c[0] != client_socket:
-                        c[0].send(f"{name}: {message}".encode())
+            print(message)
         except Exception as e:
-            print(f"Error handling client: {e}")
+            print(f"Error receiving message: {e}")
             break
 
-    print(f"Bye bye {name} see you again.")
-    with clients_lock:
-        clients.remove((client_socket, name))
-    client_socket.close()
-
 def main():
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.bind(('0.0.0.0', SERVER_PORT))
-    server_socket.listen(MAX_CLIENTS)
-    print(f"Awesome server is up. Kindly ask the client to enter awesome for the password")
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    client_socket.connect((SERVER_ADDRESS, SERVER_PORT))
+
+    name = input("Enter your name: ").strip()
+    client_socket.send(name.encode())
+
+    password = input("Enter the server password: ").strip()
+
+    receive_thread = threading.Thread(target=receive_messages, args=(client_socket,))
+    receive_thread.start()
 
     while True:
-        client_socket, client_address = server_socket.accept()
-        client_thread = threading.Thread(target=handle_client, args=(client_socket, client_address))
-        client_thread.start()
+        message = input()
+        client_socket.send(message.encode())
 
-if __name___ == "__main__":
+        if message.lower() == "quit":
+            break
+
+    client_socket.close()
+
+if __name__ == "__main__":
     main()
